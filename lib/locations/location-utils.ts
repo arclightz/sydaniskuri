@@ -1,4 +1,4 @@
-import type { AvailabilityRule, LocationFeature, LocationResult } from "./types";
+import type { AvailabilityRule, LocationFeature, LocationResult, LocationSummary } from "./types";
 
 const EARTH_RADIUS_KM = 6371;
 const FINNISH_TIME_ZONE = "Europe/Helsinki";
@@ -63,8 +63,7 @@ function ruleMatches(rule: AvailabilityRule, now: ReturnType<typeof finnishDateP
   return false;
 }
 
-export function getAvailabilityStatus(feature: LocationFeature, date = new Date()): "open" | "closed" | "unknown" {
-  const rules = feature.properties.availabilityRules;
+function availabilityStatus(rules: AvailabilityRule[], date = new Date()): "open" | "closed" | "unknown" {
   if (!rules.length) return "unknown";
   const now = finnishDateParts(date);
   const matching = rules.filter((rule) => ruleMatches(rule, now));
@@ -73,9 +72,9 @@ export function getAvailabilityStatus(feature: LocationFeature, date = new Date(
   return rules.some((rule) => rule.type === "weekday") ? "closed" : "unknown";
 }
 
-export function isAlwaysOpen(feature: LocationFeature): boolean {
+function alwaysOpen(rules: AvailabilityRule[]): boolean {
   const allDays = new Set(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]);
-  return feature.properties.availabilityRules.some(
+  return rules.some(
     (rule) =>
       rule.type === "weekday" &&
       rule.available &&
@@ -84,6 +83,22 @@ export function isAlwaysOpen(feature: LocationFeature): boolean {
       rule.days?.length === allDays.size &&
       rule.days.every((day) => allDays.has(day)),
   );
+}
+
+export function getAvailabilityStatus(feature: LocationFeature, date = new Date()): "open" | "closed" | "unknown" {
+  return availabilityStatus(feature.properties.availabilityRules, date);
+}
+
+export function getSummaryAvailabilityStatus(summary: LocationSummary, date = new Date()): "open" | "closed" | "unknown" {
+  return availabilityStatus(summary.availabilityRules, date);
+}
+
+export function isAlwaysOpen(feature: LocationFeature): boolean {
+  return alwaysOpen(feature.properties.availabilityRules);
+}
+
+export function isSummaryAlwaysOpen(summary: LocationSummary): boolean {
+  return alwaysOpen(summary.availabilityRules);
 }
 
 export type LocationFilters = {
@@ -95,7 +110,9 @@ export type LocationFilters = {
   now?: Date;
 };
 
-export function filterAndSortLocations(features: LocationFeature[], filters: LocationFilters): LocationResult[] {
+type LegacyLocationResult = { feature: LocationFeature; distanceKm: number };
+
+export function filterAndSortLocations(features: LocationFeature[], filters: LocationFilters): LegacyLocationResult[] {
   const terms = normalizeSearchText(filters.query ?? "").split(" ").filter(Boolean);
   const now = filters.now ?? new Date();
 
@@ -109,4 +126,27 @@ export function filterAndSortLocations(features: LocationFeature[], filters: Loc
       distanceKm: haversineDistance(filters.origin, feature.geometry.coordinates),
     }))
     .sort((a, b) => a.distanceKm - b.distanceKm);
+}
+
+export function filterLocationSummaries(
+  summaries: LocationSummary[],
+  filters: Omit<LocationFilters, "origin" | "now">,
+  now = new Date(),
+): LocationSummary[] {
+  const terms = normalizeSearchText(filters.query ?? "").split(" ").filter(Boolean);
+
+  return summaries
+    .filter((summary) => terms.every((term) => summary.searchText.includes(term)))
+    .filter((summary) => !filters.locationType || summary.locationType === filters.locationType)
+    .filter((summary) => !filters.openNow || getSummaryAvailabilityStatus(summary, now) === "open")
+    .filter((summary) => !filters.alwaysOpen || isSummaryAlwaysOpen(summary));
+}
+
+export function sortLocationSummariesByDistance(
+  summaries: LocationSummary[],
+  origin: [number, number],
+): LocationResult[] {
+  return summaries
+    .map((summary) => ({ summary, distanceKm: haversineDistance(origin, summary.coordinates) }))
+    .sort((left, right) => left.distanceKm - right.distanceKm);
 }
