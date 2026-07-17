@@ -7,6 +7,13 @@ import {
   normalizeSearchText,
 } from "./location-utils";
 import type { LocationFeature } from "./types";
+import {
+  decodeAvailabilityRules,
+  decodeLocationIndex,
+  detailShardName,
+  encodeAvailabilityRules,
+  type LocationIndexDocument,
+} from "./public-data";
 
 function feature(overrides: Partial<LocationFeature["properties"]> = {}, coordinates: [number, number] = [24.94, 60.17]): LocationFeature {
   return {
@@ -31,6 +38,36 @@ function feature(overrides: Partial<LocationFeature["properties"]> = {}, coordin
 }
 
 describe("location utilities", () => {
+  it("round-trips compact availability rules", () => {
+    const rules = [
+      { type: "weekday", available: true, days: ["Monday", "Friday"], from: "08:00", to: "16:30" },
+      { type: "range", available: false, from: "2026-12-24 00:00:00", to: "2026-12-26 23:59:59" },
+    ];
+
+    expect(decodeAvailabilityRules(encodeAvailabilityRules(rules))).toEqual(rules);
+  });
+
+  it("decodes tuples behind a typed summary boundary", () => {
+    const document: LocationIndexDocument = {
+      version: 1,
+      locationTypes: ["Kirjasto"],
+      locations: [[1, 24.94, 60.17, "Keskustan kirjasto", "Katu 1", "00100", "Helsinki", 0, [["w", 1, 31, 480, 960]]]],
+    };
+
+    expect(decodeLocationIndex(document)[0]).toMatchObject({
+      id: 1,
+      coordinates: [24.94, 60.17],
+      locationType: "Kirjasto",
+      searchText: "keskustan kirjasto helsinki katu 1",
+    });
+  });
+
+  it("assigns deterministic detail shards", () => {
+    expect(detailShardName(1)).toBe("01.json");
+    expect(detailShardName(33)).toBe("01.json");
+    expect(detailShardName(-1)).toBe("01.json");
+  });
+
   it("normalizes Finnish search text", () => {
     expect(normalizeSearchText("  Töölön Sydäniskuri!  ")).toBe("toolon sydaniskuri");
   });
