@@ -5,28 +5,21 @@ import type { LocationResult } from "@/lib/locations/types";
 
 const result: LocationResult = {
   distanceKm: 1.24,
-  feature: {
-    type: "Feature",
+  summary: {
     id: 1,
-    geometry: { type: "Point", coordinates: [24.94, 60.17] },
-    properties: {
-      id: 1,
-      title: "Kaupungintalo",
-      slug: "kaupungintalo",
-      address: "",
-      postalCode: "",
-      city: "Helsinki",
-      locationType: "Virasto",
-      availabilityRules: [],
-      availabilityDetails: "",
-      addressDetails: "",
-      searchText: "kaupungintalo helsinki",
-    },
+    coordinates: [24.94, 60.17],
+    title: "Kaupungintalo",
+    address: "",
+    postalCode: "",
+    city: "Helsinki",
+    locationType: "Virasto",
+    availabilityRules: [],
+    searchText: "kaupungintalo helsinki",
   },
 };
 
 describe("LocationCard", () => {
-  it("shows essential details and neutral fallbacks", () => {
+  it("shows summary fields and neutral detail fallbacks", () => {
     render(<LocationCard result={result} selected now={new Date("2026-07-20T10:00:00+03:00")} onSelect={() => {}} />);
 
     expect(screen.getByRole("heading", { name: "Kaupungintalo" })).toBeInTheDocument();

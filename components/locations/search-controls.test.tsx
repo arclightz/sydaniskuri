@@ -4,6 +4,24 @@ import { describe, expect, it, vi } from "vitest";
 import { SearchControls } from "./search-controls";
 
 describe("SearchControls", () => {
+  it("disables controls while location summaries load", () => {
+    render(
+      <SearchControls
+        loading
+        filters={{ query: "", openNow: false, alwaysOpen: false, locationType: "" }}
+        locationTypes={[]}
+        onChange={() => {}}
+        onClear={() => {}}
+      />,
+    );
+
+    expect(screen.getByLabelText("Haku ja suodattimet")).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("searchbox")).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: "Avoinna nyt" })).toBeDisabled();
+    expect(screen.getByRole("combobox", { name: "Paikkatyyppi" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Tyhjennä suodattimet" })).toBeDisabled();
+  });
+
   it("updates search and filters and can clear them", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();

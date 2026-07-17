@@ -12,14 +12,16 @@ export function SearchControls({
   locationTypes,
   onChange,
   onClear,
+  loading = false,
 }: {
   filters: SearchFilterState;
   locationTypes: string[];
   onChange: (filters: SearchFilterState) => void;
   onClear: () => void;
+  loading?: boolean;
 }) {
   return (
-    <section className="search-controls" aria-label="Haku ja suodattimet">
+    <section className="search-controls" aria-label="Haku ja suodattimet" aria-busy={loading}>
       <label className="search-field">
         <Search aria-hidden="true" size={20} />
         <span className="sr-only">Hae osoitteella, kaupungilla tai nimellä</span>
@@ -28,28 +30,29 @@ export function SearchControls({
           role="searchbox"
           value={filters.query}
           placeholder="Osoite, kaupunki tai kohteen nimi"
+          disabled={loading}
           onChange={(event) => onChange({ ...filters, query: event.target.value })}
         />
       </label>
       <div className="filter-heading"><SlidersHorizontal aria-hidden="true" size={18} /><span>Rajaa tuloksia</span></div>
       <div className="filter-row">
         <label className="check-control">
-          <input type="checkbox" checked={filters.openNow} onChange={(event) => onChange({ ...filters, openNow: event.target.checked })} />
+          <input type="checkbox" disabled={loading} checked={filters.openNow} onChange={(event) => onChange({ ...filters, openNow: event.target.checked })} />
           <span>Avoinna nyt</span>
         </label>
         <label className="check-control">
-          <input type="checkbox" checked={filters.alwaysOpen} onChange={(event) => onChange({ ...filters, alwaysOpen: event.target.checked })} />
+          <input type="checkbox" disabled={loading} checked={filters.alwaysOpen} onChange={(event) => onChange({ ...filters, alwaysOpen: event.target.checked })} />
           <span>Avoinna 24/7</span>
         </label>
       </div>
       <label className="select-control">
         <span>Paikkatyyppi</span>
-        <select aria-label="Paikkatyyppi" value={filters.locationType} onChange={(event) => onChange({ ...filters, locationType: event.target.value })}>
+        <select aria-label="Paikkatyyppi" disabled={loading} value={filters.locationType} onChange={(event) => onChange({ ...filters, locationType: event.target.value })}>
           <option value="">Kaikki paikkatyypit</option>
           {locationTypes.map((type) => <option key={type} value={type}>{type}</option>)}
         </select>
       </label>
-      <button className="text-button" type="button" onClick={onClear}>
+      <button className="text-button" type="button" disabled={loading} onClick={onClear}>
         <X aria-hidden="true" size={17} /> Tyhjennä suodattimet
       </button>
     </section>

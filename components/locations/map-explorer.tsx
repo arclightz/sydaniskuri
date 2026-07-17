@@ -1,11 +1,13 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { Crosshair, List, RotateCcw } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { filterAndSortLocations } from "@/lib/locations/location-utils";
-import type { LocationCollection, LocationFeature } from "@/lib/locations/types";
+import { Crosshair, List } from "lucide-react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { LocationDataClient } from "@/lib/locations/location-data-client";
+import { filterLocationSummaries, sortLocationSummariesByDistance } from "@/lib/locations/location-utils";
+import type { LocationSummary, MapPointCollection } from "@/lib/locations/types";
 import { LocationCard } from "./location-card";
+import { MapStatus } from "./map-status";
 import { SearchControls, type SearchFilterState } from "./search-controls";
 
 const MapView = dynamic(() => import("./map-view").then((module) => module.MapView), {
@@ -16,52 +18,83 @@ const MapView = dynamic(() => import("./map-view").then((module) => module.MapVi
 const DEFAULT_CENTER: [number, number] = [24.94, 60.17];
 const emptyFilters: SearchFilterState = { query: "", openNow: false, alwaysOpen: false, locationType: "" };
 
-export function MapExplorer({ initialCollection }: { initialCollection?: LocationCollection }) {
-  const [collection, setCollection] = useState<LocationCollection | null>(initialCollection ?? null);
-  const [loadError, setLoadError] = useState("");
-  const [mapError, setMapError] = useState("");
+type LocationDataLoader = Pick<LocationDataClient, "loadPoints" | "loadIndex" | "loadDetail" | "clearDetailShard">;
+
+export function MapExplorer({
+  dataClient,
+  initialPoints,
+  initialSummaries,
+  mapTilerKey = "",
+}: {
+  dataClient?: LocationDataLoader;
+  initialPoints?: MapPointCollection;
+  initialSummaries?: LocationSummary[];
+  mapTilerKey?: string;
+}) {
+  const client = useMemo(() => dataClient ?? new LocationDataClient(), [dataClient]);
+  const [points, setPoints] = useState<MapPointCollection | null>(initialPoints ?? null);
+  const [summaries, setSummaries] = useState<LocationSummary[] | null>(initialSummaries ?? null);
+  const [pointError, setPointError] = useState("");
+  const [indexError, setIndexError] = useState("");
+  const [mapError, setMapError] = useState(mapTilerKey ? "" : "MapTiler-avain puuttuu.");
   const [filters, setFilters] = useState(emptyFilters);
+  const deferredFilters = useDeferredValue(filters);
   const [origin, setOrigin] = useState<[number, number]>(DEFAULT_CENTER);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [locationMessage, setLocationMessage] = useState("");
   const [mobilePanelOpen, setMobilePanelOpen] = useState(true);
 
-  const loadLocations = useCallback(async () => {
-    if (initialCollection) return;
-    setLoadError("");
+  const loadPoints = useCallback(async () => {
+    setPointError("");
     try {
-      const response = await fetch("/data/defibrillators.geojson");
-      if (!response.ok) throw new Error();
-      setCollection(await response.json() as LocationCollection);
+      setPoints(await client.loadPoints());
     } catch {
-      setLoadError("Sydäniskuritietoja ei voitu ladata.");
+      setPointError("Sydäniskureita ei voitu ladata.");
     }
-  }, [initialCollection]);
+  }, [client]);
 
-  useEffect(() => { void loadLocations(); }, [loadLocations]);
+  const loadIndex = useCallback(async () => {
+    setIndexError("");
+    try {
+      setSummaries(await client.loadIndex());
+    } catch {
+      setIndexError("Kohdetietoja ei voitu ladata.");
+    }
+  }, [client]);
+
+  useEffect(() => {
+    if (!initialPoints) void loadPoints();
+  }, [initialPoints, loadPoints]);
+
+  useEffect(() => {
+    if (!initialSummaries) void loadIndex();
+  }, [initialSummaries, loadIndex]);
 
   const locationTypes = useMemo(
-    () => [...new Set(collection?.features.map((feature) => feature.properties.locationType).filter(Boolean) ?? [])].sort((a, b) => a.localeCompare(b, "fi")),
-    [collection],
+    () => [...new Set(summaries?.map((summary) => summary.locationType).filter(Boolean) ?? [])].sort((left, right) => left.localeCompare(right, "fi")),
+    [summaries],
   );
-
+  const filteredSummaries = useMemo(
+    () => filterLocationSummaries(summaries ?? [], deferredFilters),
+    [deferredFilters, summaries],
+  );
   const results = useMemo(
-    () => filterAndSortLocations(collection?.features ?? [], { ...filters, origin }),
-    [collection, filters, origin],
+    () => sortLocationSummariesByDistance(filteredSummaries, origin),
+    [filteredSummaries, origin],
   );
-
-  const visibleFeatures = useMemo<LocationFeature[]>(() => results.map((result) => result.feature), [results]);
-  const selectedResult = results.find((result) => result.feature.properties.id === selectedId);
-  const highlightedFeature = selectedResult?.feature ?? results[0]?.feature ?? null;
+  const visiblePoints = useMemo(() => {
+    if (!points) return [];
+    const visibleIds = new Set(filteredSummaries.map((summary) => summary.id));
+    return points.features.filter((point) => visibleIds.has(point.id));
+  }, [filteredSummaries, points]);
 
   const selectLocation = useCallback((id: number) => {
-    const feature = collection?.features.find((candidate) => candidate.properties.id === id);
-    if (feature) {
+    if (summaries?.some((summary) => summary.id === id)) {
       setSelectedId(id);
       setMobilePanelOpen(true);
     }
-  }, [collection]);
+  }, [summaries]);
 
   function useOwnLocation() {
     setLocationMessage("");
@@ -81,17 +114,6 @@ export function MapExplorer({ initialCollection }: { initialCollection?: Locatio
     );
   }
 
-  if (loadError) {
-    return (
-      <main className="centered-state">
-        <h1>Tietojen lataus epäonnistui</h1><p>{loadError}</p>
-        <button className="button button--primary" type="button" onClick={() => void loadLocations()}><RotateCcw aria-hidden="true" /> Yritä uudelleen</button>
-      </main>
-    );
-  }
-
-  if (!collection) return <main className="centered-state" role="status"><div className="spinner" /><p>Sydäniskureita ladataan…</p></main>;
-
   return (
     <main className="explorer">
       <aside className={`explorer-panel ${mobilePanelOpen ? "explorer-panel--open" : ""}`} aria-label="Sydäniskurien hakutulokset">
@@ -102,24 +124,29 @@ export function MapExplorer({ initialCollection }: { initialCollection?: Locatio
             <h1>Löydä apu nopeasti</h1>
             <p>Hae yli 12 000 sydäniskurin joukosta koko Suomessa.</p>
           </div>
-          <SearchControls filters={filters} locationTypes={locationTypes} onChange={setFilters} onClear={() => { setFilters(emptyFilters); setSelectedId(null); }} />
+          <SearchControls loading={!summaries} filters={filters} locationTypes={locationTypes} onChange={setFilters} onClear={() => { setFilters(emptyFilters); setSelectedId(null); }} />
           <div className="results-heading">
-            <div><strong>{results.length.toLocaleString("fi-FI")} {results.length === 1 ? "kohde" : "kohdetta"}</strong><span>etäisyyden mukaan</span></div>
+            <div>
+              <strong>{summaries ? `${results.length.toLocaleString("fi-FI")} ${results.length === 1 ? "kohde" : "kohdetta"}` : "Kohteita ladataan…"}</strong>
+              <span>etäisyyden mukaan</span>
+            </div>
             <button className="button button--secondary locate-button" type="button" onClick={useOwnLocation}><Crosshair aria-hidden="true" size={18} /> Oma sijainti</button>
           </div>
+          {indexError && <div className="inline-notice inline-notice--warning" role="alert"><p>{indexError}</p><button className="text-button" type="button" onClick={() => void loadIndex()}>Lataa kohdetiedot uudelleen</button></div>}
           {locationMessage && <p className="inline-notice" role="status">{locationMessage}</p>}
-          {mapError && <p className="inline-notice inline-notice--warning" role="status">Kartta ei latautunut. Voit käyttää alla olevaa kohdelistaa.</p>}
           <div className="location-list">
-            {results.length ? results.slice(0, 60).map((result) => (
-              <LocationCard key={result.feature.properties.id} result={result} selected={selectedId === result.feature.properties.id} onSelect={() => selectLocation(result.feature.properties.id)} />
+            {summaries && !indexError && (results.length ? results.slice(0, 60).map((result) => (
+              <LocationCard key={result.summary.id} result={result} selected={selectedId === result.summary.id} onSelect={() => selectLocation(result.summary.id)} />
             )) : (
               <div className="empty-state"><h2>Ei kohteita tältä alueelta</h2><p>Kokeile laajempaa hakua tai tyhjennä suodattimet yllä.</p></div>
-            )}
+            ))}
           </div>
         </div>
       </aside>
       <section className="map-area" aria-label="Sydäniskurikartta">
-        {!mapError && <MapView features={visibleFeatures} selectedFeature={highlightedFeature} userLocation={userLocation} onSelect={selectLocation} onCenterChange={setOrigin} onError={() => setMapError("Kartta ei latautunut.")} />}
+        <MapView features={visiblePoints} selectedId={selectedId} userLocation={userLocation} mapTilerKey={mapTilerKey} onSelect={selectLocation} onCenterChange={setOrigin} onError={() => setMapError((current) => current || "Kartta ei latautunut.")} />
+        <MapStatus loading={!points && !pointError} error={pointError} onRetry={() => void loadPoints()} />
+        {mapError && <p className="map-status map-status--error" role="alert">{mapError}</p>}
         <button className="mobile-panel-toggle button button--primary" type="button" onClick={() => setMobilePanelOpen((value) => !value)}>
           <List aria-hidden="true" size={18} /> {mobilePanelOpen ? "Sulje lista" : `Näytä lista (${results.length})`}
         </button>

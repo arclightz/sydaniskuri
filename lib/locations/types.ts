@@ -7,32 +7,6 @@ export type AvailabilityRule = {
   to?: string;
 };
 
-export type LocationProperties = {
-  id: number;
-  title: string;
-  slug: string;
-  address: string;
-  postalCode: string;
-  city: string;
-  locationType: string;
-  availabilityRules: AvailabilityRule[];
-  availabilityDetails: string;
-  addressDetails: string;
-  searchText: string;
-};
-
-export type LocationFeature = {
-  type: "Feature";
-  id: number;
-  geometry: { type: "Point"; coordinates: [number, number] };
-  properties: LocationProperties;
-};
-
-export type LocationCollection = {
-  type: "FeatureCollection";
-  features: LocationFeature[];
-};
-
 export type LocationSummary = {
   id: number;
   coordinates: [number, number];
