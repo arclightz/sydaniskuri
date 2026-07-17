@@ -2,11 +2,11 @@
 
 import dynamic from "next/dynamic";
 import { Crosshair, List } from "lucide-react";
-import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { LocationDataClient } from "@/lib/locations/location-data-client";
 import { filterLocationSummaries, sortLocationSummariesByDistance } from "@/lib/locations/location-utils";
 import type { LocationSummary, MapPointCollection } from "@/lib/locations/types";
-import { LocationCard } from "./location-card";
+import { LocationCard, type DetailState } from "./location-card";
 import { MapStatus } from "./map-status";
 import { SearchControls, type SearchFilterState } from "./search-controls";
 
@@ -42,6 +42,8 @@ export function MapExplorer({
   const [origin, setOrigin] = useState<[number, number]>(DEFAULT_CENTER);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [detailStates, setDetailStates] = useState<Record<number, DetailState>>({});
+  const detailRequestRef = useRef(0);
   const [locationMessage, setLocationMessage] = useState("");
   const [mobilePanelOpen, setMobilePanelOpen] = useState(true);
 
@@ -88,6 +90,27 @@ export function MapExplorer({
     const visibleIds = new Set(filteredSummaries.map((summary) => summary.id));
     return points.features.filter((point) => visibleIds.has(point.id));
   }, [filteredSummaries, points]);
+
+  const loadDetail = useCallback(async (id: number) => {
+    const request = ++detailRequestRef.current;
+    setDetailStates((states) => ({ ...states, [id]: { status: "loading" } }));
+    try {
+      const detail = await client.loadDetail(id);
+      if (request === detailRequestRef.current) setDetailStates((states) => ({ ...states, [id]: { status: "ready", detail } }));
+    } catch {
+      if (request === detailRequestRef.current) setDetailStates((states) => ({ ...states, [id]: { status: "error", message: "Lisätietoja ei voitu ladata." } }));
+    }
+  }, [client]);
+
+  useEffect(() => {
+    if (selectedId === null || detailStates[selectedId]) return;
+    void loadDetail(selectedId);
+  }, [detailStates, loadDetail, selectedId]);
+
+  const retryDetail = useCallback((id: number) => {
+    client.clearDetailShard(id);
+    void loadDetail(id);
+  }, [client, loadDetail]);
 
   const selectLocation = useCallback((id: number) => {
     if (summaries?.some((summary) => summary.id === id)) {
@@ -136,7 +159,7 @@ export function MapExplorer({
           {locationMessage && <p className="inline-notice" role="status">{locationMessage}</p>}
           <div className="location-list">
             {summaries && !indexError && (results.length ? results.slice(0, 60).map((result) => (
-              <LocationCard key={result.summary.id} result={result} selected={selectedId === result.summary.id} onSelect={() => selectLocation(result.summary.id)} />
+              <LocationCard key={result.summary.id} result={result} selected={selectedId === result.summary.id} detailState={detailStates[result.summary.id]} onRetryDetail={() => retryDetail(result.summary.id)} onSelect={() => selectLocation(result.summary.id)} />
             )) : (
               <div className="empty-state"><h2>Ei kohteita tältä alueelta</h2><p>Kokeile laajempaa hakua tai tyhjennä suodattimet yllä.</p></div>
             ))}

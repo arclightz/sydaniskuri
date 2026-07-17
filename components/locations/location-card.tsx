@@ -1,22 +1,21 @@
 import { ExternalLink, MapPin } from "lucide-react";
 import { getSummaryAvailabilityStatus } from "@/lib/locations/location-utils";
-import type { LocationResult } from "@/lib/locations/types";
+import type { LocationDetail, LocationResult } from "@/lib/locations/types";
 
-const statusLabels = {
-  open: "Avoinna nyt",
-  closed: "Suljettu nyt",
-  unknown: "Saatavuus ei tiedossa",
-} as const;
+const statusLabels = { open: "Avoinna nyt", closed: "Suljettu nyt", unknown: "Saatavuus ei tiedossa" } as const;
 
-export function LocationCard({
-  result,
-  selected = false,
-  now,
-  onSelect,
-}: {
+export type DetailState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "ready"; detail: LocationDetail }
+  | { status: "error"; message: string };
+
+export function LocationCard({ result, selected = false, now, detailState = { status: "idle" }, onRetryDetail, onSelect }: {
   result: LocationResult;
   selected?: boolean;
   now?: Date;
+  detailState?: DetailState;
+  onRetryDetail?: () => void;
   onSelect: () => void;
 }) {
   const { summary, distanceKm } = result;
@@ -24,6 +23,7 @@ export function LocationCard({
   const [lng, lat] = summary.coordinates;
   const routeUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${lat},${lng}`)}`;
   const address = [summary.address, summary.postalCode, summary.city].filter(Boolean).join(", ");
+  const detail = detailState.status === "ready" ? detailState.detail : null;
 
   return (
     <article className={`location-card ${selected ? "location-card--selected" : ""}`} aria-current={selected ? "true" : undefined}>
@@ -37,12 +37,12 @@ export function LocationCard({
         <div className="location-card__details">
           <dl>
             <div><dt>Paikkatyyppi</dt><dd>{summary.locationType || "Ei tiedossa"}</dd></div>
-            <div><dt>Saatavuus</dt><dd>Ei tiedossa</dd></div>
-            <div><dt>Tarkka sijainti</dt><dd>Ei tiedossa</dd></div>
+            <div><dt>Saatavuus</dt><dd>{detail?.availabilityDetails || "Ei tiedossa"}</dd></div>
+            <div><dt>Tarkka sijainti</dt><dd>{detail?.addressDetails || "Ei tiedossa"}</dd></div>
           </dl>
-          <a className="button button--secondary" href={routeUrl} target="_blank" rel="noreferrer">
-            Näytä reitti <ExternalLink aria-hidden="true" size={17} />
-          </a>
+          {detailState.status === "loading" && <p className="inline-notice" role="status">Lisätietoja ladataan…</p>}
+          {detailState.status === "error" && <div className="inline-notice inline-notice--warning" role="alert"><p>{detailState.message}</p><button className="text-button" type="button" onClick={onRetryDetail}>Yritä lisätietoja uudelleen</button></div>}
+          <a className="button button--secondary" href={routeUrl} target="_blank" rel="noreferrer">Näytä reitti <ExternalLink aria-hidden="true" size={17} /></a>
         </div>
       )}
     </article>

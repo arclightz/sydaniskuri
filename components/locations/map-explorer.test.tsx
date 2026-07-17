@@ -79,6 +79,18 @@ describe("MapExplorer", () => {
     expect(screen.getByRole("button", { name: "Yritä uudelleen" })).toBeInTheDocument();
   });
 
+  it("loads details only after an explicit map selection", async () => {
+    const user = userEvent.setup();
+    const loadDetail = vi.fn().mockResolvedValue({ id: 2, availabilityDetails: "Arkisin", addressDetails: "Oven vieressä" });
+    const client = { loadPoints: vi.fn(), loadIndex: vi.fn(), loadDetail, clearDetailShard: vi.fn() };
+    render(<MapExplorer dataClient={client} initialPoints={points} initialSummaries={summaries} mapTilerKey="key" />);
+
+    expect(loadDetail).not.toHaveBeenCalled();
+    await user.click(await screen.findByRole("button", { name: "Valitse Turku" }));
+    expect(await screen.findByText("Oven vieressä")).toBeInTheDocument();
+    expect(loadDetail).toHaveBeenCalledWith(2);
+  });
+
   it("shows MapTiler setup guidance when the key is missing", () => {
     render(<MapExplorer initialPoints={points} initialSummaries={summaries} mapTilerKey="" />);
     expect(screen.getByRole("alert")).toHaveTextContent("MapTiler-avain puuttuu.");
