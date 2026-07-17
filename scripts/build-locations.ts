@@ -48,10 +48,12 @@ export function transformRecords(records: SourceRecord[]): {
   let skipped = 0;
 
   for (const record of records) {
+    const id = record.id;
     const latitude = Number(record.location?.lat);
     const longitude = Number(record.location?.lng);
     if (
-      !Number.isInteger(record.id) ||
+      typeof id !== "number" ||
+      !Number.isInteger(id) ||
       !Number.isFinite(latitude) ||
       !Number.isFinite(longitude) ||
       latitude < -90 ||
@@ -64,7 +66,7 @@ export function transformRecords(records: SourceRecord[]): {
     }
 
     validRecords.push({
-      id: record.id,
+      id,
       longitude,
       latitude,
       title: String(record.title ?? "Ei tiedossa"),

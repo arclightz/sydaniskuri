@@ -50,7 +50,7 @@ function minutesToTime(value: number) {
 }
 
 export function encodeAvailabilityRules(rules: AvailabilityRule[]): CompactAvailabilityRule[] {
-  return rules.flatMap((rule) => {
+  return rules.flatMap<CompactAvailabilityRule>((rule) => {
     const available = rule.available ? 1 : 0;
     if (rule.type === "weekday") {
       const mask = (rule.days ?? []).reduce((sum, day) => sum | (DAY_BITS[day] ?? 0), 0);
