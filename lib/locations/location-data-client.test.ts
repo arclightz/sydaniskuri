@@ -15,6 +15,16 @@ const pointsDocument: MapPointCollection = {
 };
 
 describe("LocationDataClient", () => {
+  it("calls the browser fetcher with the global receiver", async () => {
+    const fetcher = vi.fn(function (this: unknown) {
+      expect(this).toBe(globalThis);
+      return Promise.resolve(new Response(JSON.stringify(indexDocument), { status: 200 }));
+    });
+    const client = new LocationDataClient(fetcher);
+
+    await expect(client.loadIndex()).resolves.toHaveLength(1);
+  });
+
   it("loads and decodes the search index", async () => {
     const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify(indexDocument), { status: 200 }));
     const client = new LocationDataClient(fetcher);

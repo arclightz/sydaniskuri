@@ -10,7 +10,11 @@ import type { LocationDetail, LocationSummary, MapPointCollection } from "./type
 export class LocationDataClient {
   private readonly shardPromises = new Map<string, Promise<Map<number, LocationDetail>>>();
 
-  constructor(private readonly fetcher: typeof fetch = fetch) {}
+  private readonly fetcher: typeof fetch;
+
+  constructor(fetcher: typeof fetch = globalThis.fetch) {
+    this.fetcher = fetcher.bind(globalThis);
+  }
 
   async loadPoints(): Promise<MapPointCollection> {
     return this.loadJson<MapPointCollection>("/data/map-points.geojson");

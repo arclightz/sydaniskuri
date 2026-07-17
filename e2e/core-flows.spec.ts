@@ -22,6 +22,35 @@ test("etusivun haku, kohteen valinta ja hätäohje", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Elvytys- ja sydäniskuriohjeet" })).toBeVisible();
 });
 
+test("vector basemap renders before location data", async ({ page }) => {
+  const detailRequests: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().includes("/data/details/")) detailRequests.push(request.url());
+  });
+  const pointsResponse = page.waitForResponse("**/data/map-points.geojson");
+  const indexResponse = page.waitForResponse("**/data/location-index.json");
+  await page.route("**/data/map-points.geojson", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await route.continue();
+  });
+  await page.route("**/data/location-index.json", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await route.continue();
+  });
+
+  await page.goto("/");
+  expect((await pointsResponse).status()).toBe(200);
+  expect((await indexResponse).status()).toBe(200);
+  await expect(page.getByLabel("Interaktiivinen sydäniskurikartta")).toBeVisible();
+  await expect(page.getByText("Kohteita ladataan…")).toBeVisible();
+  await expect(page.getByText(/12[\s\u00a0]486 kohdetta/)).toBeVisible({ timeout: 10_000 });
+  expect(detailRequests).toHaveLength(0);
+
+  await page.getByRole("searchbox").fill("Forcitintie 37");
+  await page.locator(".location-card").first().getByRole("heading").click();
+  await expect.poll(() => detailRequests.length).toBe(1);
+});
+
 test("demokäyttäjä tallentaa ehdotuksen, näkee sen ja kirjautuu ulos", async ({ page }) => {
   await page.goto("/kirjaudu");
   await page.getByRole("button", { name: /Jatka demokäyttäjänä/ }).click();

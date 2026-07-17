@@ -6,6 +6,9 @@ Responsiivinen Next.js-demo lähimpien sydäniskurien löytämiseen, elvytysohje
 
 ```bash
 pnpm install
+cp .env.example .env.local
+# Set NEXT_PUBLIC_MAPTILER_KEY in .env.local and Vercel.
+pnpm data:build
 pnpm dev
 ```
 
@@ -14,7 +17,7 @@ Avaa <http://localhost:3000>.
 ## Komennot
 
 ```bash
-pnpm data:build   # muodostaa julkisen GeoJSONin lähdeaineistosta
+pnpm data:build   # muodostaa julkiset karttapisteet, hakuindeksin ja lisätietoshardit
 pnpm test         # Vitest-yksikkö- ja komponenttitestit
 pnpm test:e2e     # Playwright-selainpolut (työpöytä + mobiili)
 pnpm lint
@@ -30,9 +33,9 @@ pnpm exec playwright install chromium
 
 ## Aineisto ja yksityisyys
 
-Yksityinen lähdeaineisto sijaitsee tiedostossa `defi/data/defi_locations.json`, eikä sitä toimiteta selaimeen. `scripts/build-locations.ts` validoi koordinaatit ja muodostaa tiedoston `public/data/defibrillators.geojson`. Julkisesta tiedostosta poistetaan käyttäjänimi, yhteyshenkilöt, puhelinnumerot, vastuuvapausmerkinnät ja muu kartalle tarpeeton tieto.
+Yksityinen lähdeaineisto sijaitsee tiedostossa `defi/data/defi_locations.json`, eikä sitä toimiteta selaimeen. `scripts/build-locations.ts` validoi koordinaatit ja muodostaa versionoidut karttapisteet (`public/data/map-points.geojson`), hakuindeksin (`public/data/location-index.json`) sekä 32 valittavan kohteen lisätietoshardia (`public/data/details/`).
 
-Kun lähdeaineisto muuttuu, aja `pnpm data:build` ja tallenna uusi julkinen GeoJSON. Tuotantorakennus käyttää valmiiksi esikäsiteltyä tiedostoa, joten se toimii Vercelissä ilman yksityistä lähdeaineistoa tai kirjoitettavaa palvelimen tiedostojärjestelmää.
+Kartta käyttää MapTilerin vektorikarttatyyliä. `.env.local` on git-ignorattu: aseta siihen ja Verceliin `NEXT_PUBLIC_MAPTILER_KEY`, jonka käyttö on rajattu sovelluksen domaineihin. Tuotantorakennus käyttää commitattuja vaiheistettuja tiedostoja, joten se toimii Vercelissä ilman yksityistä lähdeaineistoa tai kirjoitettavaa palvelimen tiedostojärjestelmää.
 
 ## Demotallennus
 
