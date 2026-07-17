@@ -8,6 +8,10 @@ import type { MapPointFeature, MapViewportBounds } from "@/lib/locations/types";
 const SOURCE_ID = "defibrillators";
 const USER_SOURCE_ID = "user-location";
 
+export function clusterTargetZoom(expansionZoom: number) {
+  return Math.max(expansionZoom, 15);
+}
+
 export function MapView({
   features,
   selectedId,
@@ -81,7 +85,7 @@ export function MapView({
           const source = map.getSource(SOURCE_ID) as GeoJSONSource;
           const zoom = await source.getClusterExpansionZoom(clusterId);
           const coordinates = (feature.geometry as { type: "Point"; coordinates: [number, number] }).coordinates;
-          map.easeTo({ center: coordinates, zoom });
+          map.easeTo({ center: coordinates, zoom: clusterTargetZoom(zoom) });
         });
         map.on("click", "defibrillator-points", (event) => {
           const id = Number(event.features?.[0]?.id);

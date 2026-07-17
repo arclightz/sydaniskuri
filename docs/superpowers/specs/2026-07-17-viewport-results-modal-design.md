@@ -11,6 +11,7 @@ Keep the map crisp and bounded to the viewport, show at most five relevant locat
 - The explorer retains only candidates whose coordinates fall inside the current map bounds, then orders them by distance from the map center and renders the first five in the left pane.
 - The left pane has no expanded inline details. It remains a compact search/filter and viewport-results list.
 - Selecting either a map marker or a left-pane result opens an accessible modal. The modal loads the selected location's detail shard on demand, preserves route access, and supports retry after a detail-load error.
+- Selecting a green cluster jumps directly to zoom level 15 (or retains a higher cluster-expansion zoom), where the cluster layer no longer hides individual heart markers and an individual marker can open the modal.
 - Closing the modal returns focus to the selecting control and does not change the map viewport or active filters.
 
 ## Implementation Boundaries

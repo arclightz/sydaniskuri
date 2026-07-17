@@ -396,3 +396,61 @@ Expected: all commands exit 0.
 git add app/globals.css e2e/core-flows.spec.ts
 git commit -m "fix: constrain map canvas to viewport"
 ```
+
+### Task 5: Expand clusters to individual defibrillator markers
+
+**Files:**
+- Create: `components/locations/map-view.test.ts`
+- Modify: `components/locations/map-view.tsx`
+
+- [ ] **Step 1: Write a failing target-zoom test**
+
+```ts
+import { expect, it } from "vitest";
+import { clusterTargetZoom } from "./map-view";
+
+it("zooms clusters directly to individual marker detail", () => {
+  expect(clusterTargetZoom(11)).toBe(15);
+  expect(clusterTargetZoom(16)).toBe(16);
+});
+```
+
+- [ ] **Step 2: Run the test and verify RED**
+
+Run:
+
+```bash
+pnpm test components/locations/map-view.test.ts
+```
+
+Expected: FAIL because `clusterTargetZoom` does not exist.
+
+- [ ] **Step 3: Implement direct expansion**
+
+Export this helper from `map-view.tsx` and use it in the cluster click handler:
+
+```ts
+export function clusterTargetZoom(expansionZoom: number) {
+  return Math.max(expansionZoom, 15);
+}
+
+const expansionZoom = await source.getClusterExpansionZoom(clusterId);
+map.easeTo({ center: coordinates, zoom: clusterTargetZoom(expansionZoom) });
+```
+
+- [ ] **Step 4: Run the test and verify GREEN**
+
+Run:
+
+```bash
+pnpm test components/locations/map-view.test.ts
+```
+
+Expected: PASS.
+
+- [ ] **Step 5: Commit direct cluster expansion**
+
+```bash
+git add components/locations/map-view.tsx components/locations/map-view.test.ts docs/superpowers/specs/2026-07-17-viewport-results-modal-design.md docs/superpowers/plans/2026-07-17-viewport-results-modal.md
+git commit -m "fix: expand clusters to individual markers"
+```
