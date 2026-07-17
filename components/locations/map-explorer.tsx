@@ -5,8 +5,9 @@ import { Crosshair, List } from "lucide-react";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { LocationDataClient } from "@/lib/locations/location-data-client";
 import { filterLocationSummaries, sortLocationSummariesByDistance } from "@/lib/locations/location-utils";
-import type { LocationSummary, MapPointCollection } from "@/lib/locations/types";
+import type { LocationSummary, MapPointCollection, MapViewportBounds } from "@/lib/locations/types";
 import { LocationCard, type DetailState } from "./location-card";
+import { LocationDetailsModal } from "./location-details-modal";
 import { MapStatus } from "./map-status";
 import { SearchControls, type SearchFilterState } from "./search-controls";
 
@@ -40,6 +41,7 @@ export function MapExplorer({
   const [filters, setFilters] = useState(emptyFilters);
   const deferredFilters = useDeferredValue(filters);
   const [origin, setOrigin] = useState<[number, number]>(DEFAULT_CENTER);
+  const [viewportBounds, setViewportBounds] = useState<MapViewportBounds>({ west: -180, south: -90, east: 180, north: 90 });
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [detailStates, setDetailStates] = useState<Record<number, DetailState>>({});
@@ -85,6 +87,15 @@ export function MapExplorer({
     () => sortLocationSummariesByDistance(filteredSummaries, origin),
     [filteredSummaries, origin],
   );
+  const viewportResults = useMemo(() => results.filter(({ summary }) => {
+    const [longitude, latitude] = summary.coordinates;
+    return longitude >= viewportBounds.west && longitude <= viewportBounds.east
+      && latitude >= viewportBounds.south && latitude <= viewportBounds.north;
+  }), [results, viewportBounds]);
+  const listedResults = viewportResults.slice(0, 5);
+
+  const selectedResult = results.find((result) => result.summary.id === selectedId) ?? null;
+
   const visiblePoints = useMemo(() => {
     if (!points) return [];
     const visibleIds = new Set(filteredSummaries.map((summary) => summary.id));
@@ -150,7 +161,7 @@ export function MapExplorer({
           <SearchControls loading={!summaries} filters={filters} locationTypes={locationTypes} onChange={setFilters} onClear={() => { setFilters(emptyFilters); setSelectedId(null); }} />
           <div className="results-heading">
             <div>
-              <strong>{summaries ? `${results.length.toLocaleString("fi-FI")} ${results.length === 1 ? "kohde" : "kohdetta"}` : "Kohteita ladataan…"}</strong>
+              <strong>{summaries ? `${viewportResults.length.toLocaleString("fi-FI")} ${viewportResults.length === 1 ? "kohde" : "kohdetta"} kartta-alueella` : "Kohteita ladataan…"}</strong>
               <span>etäisyyden mukaan</span>
             </div>
             <button className="button button--secondary locate-button" type="button" onClick={useOwnLocation}><Crosshair aria-hidden="true" size={18} /> Oma sijainti</button>
@@ -158,8 +169,8 @@ export function MapExplorer({
           {indexError && <div className="inline-notice inline-notice--warning" role="alert"><p>{indexError}</p><button className="text-button" type="button" onClick={() => void loadIndex()}>Lataa kohdetiedot uudelleen</button></div>}
           {locationMessage && <p className="inline-notice" role="status">{locationMessage}</p>}
           <div className="location-list">
-            {summaries && !indexError && (results.length ? results.slice(0, 60).map((result) => (
-              <LocationCard key={result.summary.id} result={result} selected={selectedId === result.summary.id} detailState={detailStates[result.summary.id]} onRetryDetail={() => retryDetail(result.summary.id)} onSelect={() => selectLocation(result.summary.id)} />
+            {summaries && !indexError && (listedResults.length ? listedResults.map((result) => (
+              <LocationCard key={result.summary.id} result={result} onSelect={() => selectLocation(result.summary.id)} />
             )) : (
               <div className="empty-state"><h2>Ei kohteita tältä alueelta</h2><p>Kokeile laajempaa hakua tai tyhjennä suodattimet yllä.</p></div>
             ))}
@@ -167,11 +178,19 @@ export function MapExplorer({
         </div>
       </aside>
       <section className="map-area" aria-label="Sydäniskurikartta">
-        <MapView features={visiblePoints} selectedId={selectedId} userLocation={userLocation} mapTilerKey={mapTilerKey} onSelect={selectLocation} onCenterChange={setOrigin} onError={() => setMapError((current) => current || "Kartta ei latautunut.")} />
+        <MapView features={visiblePoints} selectedId={selectedId} userLocation={userLocation} mapTilerKey={mapTilerKey} onSelect={selectLocation} onCenterChange={setOrigin} onViewportChange={setViewportBounds} onError={() => setMapError((current) => current || "Kartta ei latautunut.")} />
         <MapStatus loading={!points && !pointError} error={pointError} onRetry={() => void loadPoints()} />
         {mapError && <p className="map-status map-status--error" role="alert">{mapError}</p>}
+        {selectedResult && (
+          <LocationDetailsModal
+            result={selectedResult}
+            detailState={detailStates[selectedResult.summary.id] ?? { status: "idle" }}
+            onClose={() => setSelectedId(null)}
+            onRetry={() => retryDetail(selectedResult.summary.id)}
+          />
+        )}
         <button className="mobile-panel-toggle button button--primary" type="button" onClick={() => setMobilePanelOpen((value) => !value)}>
-          <List aria-hidden="true" size={18} /> {mobilePanelOpen ? "Sulje lista" : `Näytä lista (${results.length})`}
+          <List aria-hidden="true" size={18} /> {mobilePanelOpen ? "Sulje lista" : `Näytä lista (${viewportResults.length})`}
         </button>
       </section>
     </main>

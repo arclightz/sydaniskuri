@@ -12,14 +12,28 @@ test("etusivun haku, kohteen valinta ja hätäohje", async ({ page }) => {
   const locationCard = page.locator(".location-card").filter({ hasText: "10900" }).first();
   await expect(locationCard.getByRole("heading", { name: "Oy Forcit Ab Hangon konttori", exact: true })).toBeVisible();
   await locationCard.getByRole("heading", { name: "Oy Forcit Ab Hangon konttori", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Oy Forcit Ab Hangon konttori" })).toBeVisible();
   await expect(page.getByText("Tarkka sijainti")).toBeVisible();
   await expect(page.getByRole("link", { name: /Näytä reitti/ })).toHaveAttribute("href", /destination=/);
+  await page.getByRole("button", { name: "Sulje kohdetiedot" }).click();
 
   await page.getByRole("button", { name: /Hätäohje/ }).click();
   await expect(page.getByRole("dialog", { name: "Toimi näin hätätilanteessa" })).toBeVisible();
   await page.getByRole("link", { name: "Avaa laajemmat ohjeet" }).click();
   await expect(page).toHaveURL(/\/ohjeet$/);
   await expect(page.getByRole("heading", { name: "Elvytys- ja sydäniskuriohjeet" })).toBeVisible();
+});
+
+test("left pane limits results and stays within the map viewport", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByText(/kohdetta kartta-alueella/)).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator(".location-card")).toHaveCount(5);
+  const dimensions = await page.evaluate(() => {
+    const explorer = document.querySelector(".explorer")?.getBoundingClientRect();
+    const map = document.querySelector(".map-area")?.getBoundingClientRect();
+    return { explorerHeight: explorer?.height, mapHeight: map?.height };
+  });
+  expect(dimensions.mapHeight).toBe(dimensions.explorerHeight);
 });
 
 test("vector basemap renders before location data", async ({ page }) => {

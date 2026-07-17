@@ -3,7 +3,7 @@
 import maplibregl, { type GeoJSONSource, type Map as MapLibreMap } from "maplibre-gl";
 import { useEffect, useRef } from "react";
 import { mapTilerStyleUrl } from "@/lib/maps/maptiler";
-import type { MapPointFeature } from "@/lib/locations/types";
+import type { MapPointFeature, MapViewportBounds } from "@/lib/locations/types";
 
 const SOURCE_ID = "defibrillators";
 const USER_SOURCE_ID = "user-location";
@@ -15,6 +15,7 @@ export function MapView({
   mapTilerKey,
   onSelect,
   onCenterChange,
+  onViewportChange,
   onError,
 }: {
   features: MapPointFeature[];
@@ -23,14 +24,15 @@ export function MapView({
   mapTilerKey: string;
   onSelect: (id: number) => void;
   onCenterChange: (center: [number, number]) => void;
+  onViewportChange: (bounds: MapViewportBounds) => void;
   onError: () => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const selectedIdRef = useRef(selectedId);
-  const callbacksRef = useRef({ onSelect, onCenterChange, onError });
+  const callbacksRef = useRef({ onSelect, onCenterChange, onViewportChange, onError });
   selectedIdRef.current = selectedId;
-  callbacksRef.current = { onSelect, onCenterChange, onError };
+  callbacksRef.current = { onSelect, onCenterChange, onViewportChange, onError };
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -89,10 +91,21 @@ export function MapView({
           map.on("mouseenter", layer, () => { map.getCanvas().style.cursor = "pointer"; });
           map.on("mouseleave", layer, () => { map.getCanvas().style.cursor = ""; });
         });
+        const emitViewport = () => {
+          const bounds = map.getBounds();
+          callbacksRef.current.onViewportChange({
+            west: bounds.getWest(),
+            south: bounds.getSouth(),
+            east: bounds.getEast(),
+            north: bounds.getNorth(),
+          });
+        };
         map.on("moveend", () => {
           const center = map.getCenter();
           callbacksRef.current.onCenterChange([center.lng, center.lat]);
+          emitViewport();
         });
+        emitViewport();
       });
     } catch {
       callbacksRef.current.onError();

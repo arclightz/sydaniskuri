@@ -25,6 +25,13 @@ export type LocationDetail = {
   addressDetails: string;
 };
 
+export type MapViewportBounds = {
+  west: number;
+  south: number;
+  east: number;
+  north: number;
+};
+
 export type MapPointFeature = {
   type: "Feature";
   id: number;
