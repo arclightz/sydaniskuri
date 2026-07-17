@@ -12,6 +12,22 @@ export function clusterTargetZoom(expansionZoom: number) {
   return Math.max(expansionZoom, 15);
 }
 
+type DefibrillatorPointPaint = {
+  "circle-color": ["case", ["==", ["id"], number], string, string];
+  "circle-radius": number;
+  "circle-stroke-color": string;
+  "circle-stroke-width": number;
+};
+
+export function defibrillatorPointPaint(selectedId: number | null): DefibrillatorPointPaint {
+  return {
+    "circle-color": ["case", ["==", ["id"], selectedId ?? -1], "#c62828", "#176b50"],
+    "circle-radius": 10,
+    "circle-stroke-color": "#ffffff",
+    "circle-stroke-width": 3,
+  };
+}
+
 export function MapView({
   features,
   selectedId,
@@ -70,11 +86,10 @@ export function MapView({
         });
         map.addLayer({
           id: "defibrillator-points",
-          type: "symbol",
+          type: "circle",
           source: SOURCE_ID,
           filter: ["!", ["has", "point_count"]],
-          layout: { "text-field": "♥", "text-size": 28, "text-allow-overlap": true, "text-font": ["Open Sans Regular"] },
-          paint: { "text-color": ["case", ["==", ["id"], selectedIdRef.current ?? -1], "#c62828", "#176b50"], "text-halo-color": "#ffffff", "text-halo-width": 2 },
+          paint: defibrillatorPointPaint(selectedIdRef.current),
         });
         map.addSource(USER_SOURCE_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
         map.addLayer({ id: "user-position", type: "circle", source: USER_SOURCE_ID, paint: { "circle-radius": 8, "circle-color": "#2563eb", "circle-stroke-color": "#ffffff", "circle-stroke-width": 3 } });
@@ -130,7 +145,7 @@ export function MapView({
     const feature = features.find((candidate) => candidate.id === selectedId);
     if (feature) map.easeTo({ center: feature.geometry.coordinates, zoom: Math.max(map.getZoom(), 15), duration: 500 });
     if (map.getLayer("defibrillator-points")) {
-      map.setPaintProperty("defibrillator-points", "text-color", ["case", ["==", ["id"], selectedId], "#c62828", "#176b50"]);
+      map.setPaintProperty("defibrillator-points", "circle-color", defibrillatorPointPaint(selectedId)["circle-color"]);
     }
   }, [features, selectedId]);
 
