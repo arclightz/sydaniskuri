@@ -3,6 +3,7 @@
 import maplibregl, { type Map as MapLibreMap, type Marker } from "maplibre-gl";
 import { Crosshair, MapPin } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { mapTilerStyleUrl } from "@/lib/maps/maptiler";
 
 const DEFAULT_CENTER: [number, number] = [24.94, 60.17];
 
@@ -27,11 +28,7 @@ export function CoordinatePicker({
         container: containerRef.current,
         center: longitude !== null && latitude !== null ? [longitude, latitude] : DEFAULT_CENTER,
         zoom: 13,
-        style: {
-          version: 8,
-          sources: { osm: { type: "raster", tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"], tileSize: 256, attribution: "© OpenStreetMapin tekijät" } },
-          layers: [{ id: "osm", type: "raster", source: "osm" }],
-        },
+        style: mapTilerStyleUrl(process.env.NEXT_PUBLIC_MAPTILER_KEY ?? ""),
       });
       mapRef.current = map;
       map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");

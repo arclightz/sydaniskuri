@@ -1,5 +1,5 @@
 import { MapExplorer } from "@/components/locations/map-explorer";
 
 export default function HomePage() {
-  return <MapExplorer />;
+  return <MapExplorer mapTilerKey={process.env.NEXT_PUBLIC_MAPTILER_KEY ?? ""} />;
 }

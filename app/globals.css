@@ -80,6 +80,9 @@ h3 { line-height: 1.3; }
 .map-area { position: relative; min-width: 0; background: #dae6df; }
 .map, .map-loading { width: 100%; height: 100%; }
 .map-loading { display: grid; place-items: center; color: var(--green-900); }
+.map-status { position: absolute; z-index: 4; right: 16px; bottom: 16px; max-width: min(340px, calc(100% - 32px)); padding: 12px 14px; border: 1px solid var(--border); border-radius: 9px; background: rgb(255 253 250 / 96%); color: var(--green-950); box-shadow: var(--shadow-md); font-size: .88rem; font-weight: 700; }
+.map-status--error { border-color: #e2a6aa; background: var(--red-soft); color: #78161e; }
+.map-status p { margin: 0 0 10px; }
 .maplibregl-ctrl-bottom-left, .maplibregl-ctrl-bottom-right { z-index: 2; }
 .maplibregl-ctrl-attrib { font-size: 10px; }
 .mobile-panel-toggle { display: none; }
