@@ -1,0 +1,148 @@
+"use client";
+
+import maplibregl, { type GeoJSONSource, type Map as MapLibreMap } from "maplibre-gl";
+import { useEffect, useRef } from "react";
+import type { LocationFeature } from "@/lib/locations/types";
+
+const SOURCE_ID = "defibrillators";
+const USER_SOURCE_ID = "user-location";
+
+export function MapView({
+  features,
+  selectedFeature,
+  userLocation,
+  onSelect,
+  onCenterChange,
+  onError,
+}: {
+  features: LocationFeature[];
+  selectedFeature: LocationFeature | null;
+  userLocation: [number, number] | null;
+  onSelect: (id: number) => void;
+  onCenterChange: (center: [number, number]) => void;
+  onError: () => void;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<MapLibreMap | null>(null);
+  const selectedFeatureRef = useRef(selectedFeature);
+  const callbacksRef = useRef({ onSelect, onCenterChange, onError });
+  selectedFeatureRef.current = selectedFeature;
+  callbacksRef.current = { onSelect, onCenterChange, onError };
+
+  useEffect(() => {
+    if (!containerRef.current || mapRef.current) return;
+    try {
+      const map = new maplibregl.Map({
+        container: containerRef.current,
+        center: [24.94, 60.17],
+        zoom: 10,
+        minZoom: 4,
+        maxZoom: 18,
+        style: {
+          version: 8,
+          glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
+          sources: {
+            osm: {
+              type: "raster",
+              tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+              tileSize: 256,
+              attribution: "© OpenStreetMapin tekijät",
+              maxzoom: 19,
+            },
+          },
+          layers: [{ id: "osm", type: "raster", source: "osm" }],
+        },
+      });
+      mapRef.current = map;
+      map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
+      map.on("load", () => {
+        map.addSource(SOURCE_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] }, cluster: true, clusterMaxZoom: 14, clusterRadius: 48 });
+        map.addLayer({
+          id: "clusters",
+          type: "circle",
+          source: SOURCE_ID,
+          filter: ["has", "point_count"],
+          paint: { "circle-color": "#176b50", "circle-radius": ["step", ["get", "point_count"], 19, 50, 24, 250, 29], "circle-stroke-color": "#fff", "circle-stroke-width": 3 },
+        });
+        map.addLayer({
+          id: "cluster-count",
+          type: "symbol",
+          source: SOURCE_ID,
+          filter: ["has", "point_count"],
+          layout: { "text-field": ["get", "point_count_abbreviated"], "text-size": 13, "text-font": ["Open Sans Regular"] },
+          paint: { "text-color": "#ffffff" },
+        });
+        const highlightedId = selectedFeatureRef.current?.properties.id ?? -1;
+        map.addLayer({
+          id: "defibrillator-points",
+          type: "symbol",
+          source: SOURCE_ID,
+          filter: ["!", ["has", "point_count"]],
+          layout: { "text-field": "♥", "text-size": 28, "text-allow-overlap": true, "text-font": ["Open Sans Regular"] },
+          paint: { "text-color": ["case", ["==", ["get", "id"], highlightedId], "#c62828", "#176b50"], "text-halo-color": "#ffffff", "text-halo-width": 2 },
+        });
+        map.addSource(USER_SOURCE_ID, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+        map.addLayer({ id: "user-position", type: "circle", source: USER_SOURCE_ID, paint: { "circle-radius": 8, "circle-color": "#2563eb", "circle-stroke-color": "#ffffff", "circle-stroke-width": 3 } });
+
+        map.on("click", "clusters", async (event) => {
+          const feature = map.queryRenderedFeatures(event.point, { layers: ["clusters"] })[0];
+          const clusterId = Number(feature?.properties?.cluster_id);
+          const source = map.getSource(SOURCE_ID) as GeoJSONSource;
+          const zoom = await source.getClusterExpansionZoom(clusterId);
+          const coordinates = (feature.geometry as { type: "Point"; coordinates: [number, number] }).coordinates;
+          map.easeTo({ center: coordinates, zoom });
+        });
+        map.on("click", "defibrillator-points", (event) => {
+          const id = Number(event.features?.[0]?.properties?.id);
+          if (Number.isFinite(id)) callbacksRef.current.onSelect(id);
+        });
+        ["clusters", "defibrillator-points"].forEach((layer) => {
+          map.on("mouseenter", layer, () => { map.getCanvas().style.cursor = "pointer"; });
+          map.on("mouseleave", layer, () => { map.getCanvas().style.cursor = ""; });
+        });
+        map.on("moveend", () => {
+          const center = map.getCenter();
+          callbacksRef.current.onCenterChange([center.lng, center.lat]);
+        });
+      });
+    } catch {
+      callbacksRef.current.onError();
+    }
+    return () => { mapRef.current?.remove(); mapRef.current = null; };
+  }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const update = () => {
+      const data = {
+        type: "FeatureCollection" as const,
+        features: features.map((feature) => ({ ...feature, properties: { ...feature.properties, id: feature.properties.id } })),
+      };
+      (map.getSource(SOURCE_ID) as GeoJSONSource | undefined)?.setData(data);
+    };
+    if (map.isStyleLoaded()) update(); else map.once("load", update);
+  }, [features]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !selectedFeature) return;
+    map.easeTo({ center: selectedFeature.geometry.coordinates, zoom: Math.max(map.getZoom(), 15), duration: 500 });
+    if (map.getLayer("defibrillator-points")) {
+      map.setPaintProperty("defibrillator-points", "text-color", ["case", ["==", ["get", "id"], selectedFeature.properties.id], "#c62828", "#176b50"]);
+    }
+  }, [selectedFeature]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const update = () => (map.getSource(USER_SOURCE_ID) as GeoJSONSource | undefined)?.setData({
+      type: "FeatureCollection",
+      features: userLocation ? [{ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: userLocation } }] : [],
+    });
+    if (map.isStyleLoaded()) update(); else map.once("load", update);
+    if (userLocation) map.easeTo({ center: userLocation, zoom: 14 });
+  }, [userLocation]);
+
+  return <div ref={containerRef} className="map" aria-label="Interaktiivinen sydäniskurikartta" />;
+}
